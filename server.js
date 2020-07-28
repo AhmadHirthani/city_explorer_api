@@ -1,36 +1,6 @@
 const express = require("express");
 const pg = require('pg');
-
-const client = new pg.Client(process.env.DATABASE_URL);
-
-const SQL = `SELECT * FROM location WHERE search_query=$1;`;
-  const values = ["adnan"];
-
- function a() {
-  console.log("waleed");
-  client.query(SQL, values)
-    .then(result => {
-      console.log("waleed2");
-      // Check to see if the location was found and return the results
-      if (result.rowCount > 0) {
-        console.log('From SQL');
-        let locationData = new Location(city, result.rows[0]);
-        return locationData;
-        // Otherwise get the location information from the Google API
-      } else {
-        return superagent.get(url).then( data => {
-          console.log('From location API');
-        }
-        )
-      }
-    });
-
-}
-
-a();
-
-require("dotenv").config();
-
+require('dotenv').config();
 const axios = require("axios");
 
 const Location = require("./Models/Location").default;
@@ -38,6 +8,11 @@ const Weather = require("./Models/Weather").default;
 const Trails = require("./Models/Trails").default;
 
 const app = express();
+
+const client = new pg.Client(process.env.DATABASE_URL);
+
+
+
 
 app.all("*", (req, res, next) => {
   console.log(`${req.method} ${req.url}`);
@@ -55,26 +30,44 @@ app.all("*", (req, res, next) => {
 });
 
 app.get("/", (req, res) => {
-  res.status(200).send({ msg: "Hello World"});
+  res.status(200).send({ msg: "Hello World" });
 });
+
 
 app.get("/location", (req, res, next) => {
   const { city } = req.query;
   try {
     if (!city) throw new Error();
     else if (!isNaN(city)) throw new Error();
-    getData(city, (locationData) => {
-      res.status(200).send(locationData);
-    });
+      console.log("before getDBLocation");
+    getDBLocation(city, function (locationData) {
+      console.log("in getDBLocation");
+      console.log("locationData",locationData);
+
+
+      if (locationData) {
+        console.log("getDBLocation exists in db")
+        res.status(200).send(locationData);
+      }
+      else {
+        console.log("getDBLocation from api")
+
+        getData(city, (locationItem) => {
+          addLocationToDB(locationItem);
+          res.status(200).send(locationItem);
+        });
+      }
+    })
   } catch (e) {
     next(e);
   }
 });
 
-function getData(city, callback){
+function getData(city, callback) {
   let LOCATIONAPIKEY = process.env.LOCATIONAPIKEY;
   let url = `https://eu1.locationiq.com/v1/search.php?key=${LOCATIONAPIKEY}&q=${city}&format=json`;
   axios.get(url).then(response => {
+    console.log('response.data',response.data);
     callback(new Location(city, response.data));
   });
 }
@@ -130,11 +123,11 @@ function getTrails(lat, lon) {
 
 
 app.all("*", (req, res) => {
-  res.status(404).send({ msg: "Sorry, page not found !"});
+  res.status(404).send({ msg: "Sorry, page not found !" });
 })
 
 app.use((err, req, res, next) => { // eslint-disable-line
-  res.status(500).send({ msg: "Sorry, something went wrong !"});
+  res.status(500).send({ msg: "Sorry, something went wrong !" });
 })
 
 const PORT = process.env.PORT || 3000;
@@ -147,3 +140,35 @@ client.connect()
   }).catch((err) => {
     console.log(err.message);
   });
+
+function getDBLocation(city, callback) {
+  const SQL = `SELECT * FROM locations WHERE search_query=$1;`;
+  const values = [city];
+  client.query(SQL, values)
+    .then(result => {
+      // Check to see if the location was found and return the results
+      console.log('result.rowCount',result.rowCount);
+      if (result.rowCount > 0) {
+        console.log('From DB');
+        console.log('result.rows[0]', result.rows[0]);
+
+
+        let locationData = new Location(city, result.rows);
+        callback(locationData);
+        // Otherwise get the location information from the Google API
+      } else {
+        callback(null);
+      }
+    });
+}
+
+function addLocationToDB(locationData) {
+  const SQL = `INSERT INTO locations (search_query,formatted_query,latitude,longitude) VALUES ('${locationData.search_query}','${locationData.formatted_query}','${locationData.latitude}','${locationData.longitude}');`;
+  console.log('SQL: ', SQL);
+  client.query(SQL)
+    .then(result => {
+      // console.log("addLocationToDB result: ", result);
+      // Check to see if the location was found and return the results
+    });
+}
+
