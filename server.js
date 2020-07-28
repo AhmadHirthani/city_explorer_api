@@ -1,4 +1,34 @@
 const express = require("express");
+const pg = require('pg');
+
+const client = new pg.Client(process.env.DATABASE_URL);
+
+const SQL = `SELECT * FROM location WHERE search_query=$1;`;
+  const values = ["adnan"];
+
+ function a() {
+  console.log("waleed");
+  client.query(SQL, values)
+    .then(result => {
+      console.log("waleed2");
+      // Check to see if the location was found and return the results
+      if (result.rowCount > 0) {
+        console.log('From SQL');
+        let locationData = new Location(city, result.rows[0]);
+        return locationData;
+        // Otherwise get the location information from the Google API
+      } else {
+        return superagent.get(url).then( data => {
+          console.log('From location API');
+        }
+        )
+      }
+    });
+
+}
+
+a();
+
 require("dotenv").config();
 
 const axios = require("axios");
@@ -109,6 +139,11 @@ app.use((err, req, res, next) => { // eslint-disable-line
 
 const PORT = process.env.PORT || 3000;
 
-app.listen(PORT, () => {
-  console.log("The server is running on port", PORT);
-});
+client.connect()
+  .then(() => {
+    app.listen(PORT, () =>
+      console.log(`listening on ${PORT}`)
+    );
+  }).catch((err) => {
+    console.log(err.message);
+  });
