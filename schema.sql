@@ -1,9 +1,9 @@
 CREATE TABLE IF NOT EXISTS
 locations (
   search_query VARCHAR(80) PRIMARY KEY NOT NULL,
-  formatted_query VARCHAR(80) NOT NULL,
-  latitude VARCHAR(25) NOT NULL,
-  longitude VARCHAR(25) NOT NULL
+  display_name VARCHAR(80) NOT NULL,
+  lat VARCHAR(25) NOT NULL,
+  lon VARCHAR(25) NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS

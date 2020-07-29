@@ -15,7 +15,7 @@ const client = new pg.Client(process.env.DATABASE_URL);
 
 
 app.all("*", (req, res, next) => {
-  console.log(`${req.method} ${req.url}`);
+  //console.log(`${req.method} ${req.url}`);
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader(
     "Access-Control-Allow-Methods",
@@ -39,19 +39,12 @@ app.get("/location", (req, res, next) => {
   try {
     if (!city) throw new Error();
     else if (!isNaN(city)) throw new Error();
-      console.log("before getDBLocation");
     getDBLocation(city, function (locationData) {
-      console.log("in getDBLocation");
-      console.log("locationData",locationData);
-
 
       if (locationData) {
-        console.log("getDBLocation exists in db")
         res.status(200).send(locationData);
       }
       else {
-        console.log("getDBLocation from api")
-
         getData(city, (locationItem) => {
           addLocationToDB(locationItem);
           res.status(200).send(locationItem);
@@ -67,7 +60,6 @@ function getData(city, callback) {
   let LOCATIONAPIKEY = process.env.LOCATIONAPIKEY;
   let url = `https://eu1.locationiq.com/v1/search.php?key=${LOCATIONAPIKEY}&q=${city}&format=json`;
   axios.get(url).then(response => {
-    console.log('response.data',response.data);
     callback(new Location(city, response.data));
   });
 }
@@ -106,7 +98,7 @@ function handelTrails(req, res) {
   getTrails(latitude, longitude).then(returnedData => {
     res.send(returnedData);
   }).catch((err) => {
-    console.log(err.message);
+    //console.log(err.message);
   });
 }
 
@@ -138,7 +130,7 @@ client.connect()
       console.log(`listening on ${PORT}`)
     );
   }).catch((err) => {
-    console.log(err.message);
+    //console.log(err.message);
   });
 
 function getDBLocation(city, callback) {
@@ -147,11 +139,10 @@ function getDBLocation(city, callback) {
   client.query(SQL, values)
     .then(result => {
       // Check to see if the location was found and return the results
-      console.log('result.rowCount',result.rowCount);
+      //console.log('result.rowCount',result.rowCount);
       if (result.rowCount > 0) {
         console.log('From DB');
         console.log('result.rows[0]', result.rows[0]);
-
 
         let locationData = new Location(city, result.rows);
         callback(locationData);
@@ -163,12 +154,11 @@ function getDBLocation(city, callback) {
 }
 
 function addLocationToDB(locationData) {
-  const SQL = `INSERT INTO locations (search_query,formatted_query,latitude,longitude) VALUES ('${locationData.search_query}','${locationData.formatted_query}','${locationData.latitude}','${locationData.longitude}');`;
+  const SQL = `INSERT INTO locations (search_query,display_name,lat,lon) VALUES ('${locationData.search_query}','${locationData.formatted_query}','${locationData.latitude}','${locationData.longitude}');`;
   console.log('SQL: ', SQL);
   client.query(SQL)
     .then(result => {
-      // console.log("addLocationToDB result: ", result);
+      // //console.log("addLocationToDB result: ", result);
       // Check to see if the location was found and return the results
     });
 }
-
