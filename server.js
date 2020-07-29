@@ -1,6 +1,6 @@
 const express = require("express");
-require("dotenv").config();
-
+const pg = require('pg');
+require('dotenv').config();
 const axios = require("axios");
 
 const Location = require("./Models/Location").default;
@@ -9,8 +9,13 @@ const Trails = require("./Models/Trails").default;
 
 const app = express();
 
+const client = new pg.Client(process.env.DATABASE_URL);
+
+
+
+
 app.all("*", (req, res, next) => {
-  console.log(`${req.method} ${req.url}`);
+  //console.log(`${req.method} ${req.url}`);
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader(
     "Access-Control-Allow-Methods",
@@ -25,23 +30,33 @@ app.all("*", (req, res, next) => {
 });
 
 app.get("/", (req, res) => {
-  res.status(200).send({ msg: "Hello World"});
+  res.status(200).send({ msg: "Hello World" });
 });
+
 
 app.get("/location", (req, res, next) => {
   const { city } = req.query;
   try {
     if (!city) throw new Error();
     else if (!isNaN(city)) throw new Error();
-    getData(city, (locationData) => {
-      res.status(200).send(locationData);
-    });
+    getDBLocation(city, function (locationData) {
+
+      if (locationData) {
+        res.status(200).send(locationData);
+      }
+      else {
+        getData(city, (locationItem) => {
+          addLocationToDB(locationItem);
+          res.status(200).send(locationItem);
+        });
+      }
+    })
   } catch (e) {
     next(e);
   }
 });
 
-function getData(city, callback){
+function getData(city, callback) {
   let LOCATIONAPIKEY = process.env.LOCATIONAPIKEY;
   let url = `https://eu1.locationiq.com/v1/search.php?key=${LOCATIONAPIKEY}&q=${city}&format=json`;
   axios.get(url).then(response => {
@@ -83,7 +98,7 @@ function handelTrails(req, res) {
   getTrails(latitude, longitude).then(returnedData => {
     res.send(returnedData);
   }).catch((err) => {
-    console.log(err.message);
+    //console.log(err.message);
   });
 }
 
@@ -100,15 +115,50 @@ function getTrails(lat, lon) {
 
 
 app.all("*", (req, res) => {
-  res.status(404).send({ msg: "Sorry, page not found !"});
+  res.status(404).send({ msg: "Sorry, page not found !" });
 })
 
 app.use((err, req, res, next) => { // eslint-disable-line
-  res.status(500).send({ msg: "Sorry, something went wrong !"});
+  res.status(500).send({ msg: "Sorry, something went wrong !" });
 })
 
 const PORT = process.env.PORT || 3000;
 
-app.listen(PORT, () => {
-  console.log("The server is running on port", PORT);
-});
+client.connect()
+  .then(() => {
+    app.listen(PORT, () =>
+      console.log(`listening on ${PORT}`)
+    );
+  }).catch((err) => {
+    //console.log(err.message);
+  });
+
+function getDBLocation(city, callback) {
+  const SQL = `SELECT * FROM locations WHERE search_query=$1;`;
+  const values = [city];
+  client.query(SQL, values)
+    .then(result => {
+      // Check to see if the location was found and return the results
+      //console.log('result.rowCount',result.rowCount);
+      if (result.rowCount > 0) {
+        console.log('From DB');
+        console.log('result.rows[0]', result.rows[0]);
+
+        let locationData = new Location(city, result.rows);
+        callback(locationData);
+        // Otherwise get the location information from the Google API
+      } else {
+        callback(null);
+      }
+    });
+}
+
+function addLocationToDB(locationData) {
+  const SQL = `INSERT INTO locations (search_query,display_name,lat,lon) VALUES ('${locationData.search_query}','${locationData.formatted_query}','${locationData.latitude}','${locationData.longitude}');`;
+  console.log('SQL: ', SQL);
+  client.query(SQL)
+    .then(result => {
+      // //console.log("addLocationToDB result: ", result);
+      // Check to see if the location was found and return the results
+    });
+}
